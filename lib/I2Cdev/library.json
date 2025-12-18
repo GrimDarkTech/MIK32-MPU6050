@@ -1,0 +1,10 @@
+{
+  "name": "I2CDev",
+  "version": "1.0.0",
+  "build": {
+    "srcDir": ".",
+    "srcFilter": [
+      "+<*.c>"
+    ]
+  }
+}
