@@ -170,8 +170,8 @@ uint8_t I2Cdev_readBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8
 {
     uint16_t tout = timeout > 0 ? timeout : I2CDEV_DEFAULT_READ_TIMEOUT;
 
-    HAL_I2C_Master_Transmit(I2Cdev_hi2c, devAddr << 1, &regAddr, 1, tout);
-    if (HAL_I2C_Master_Receive(I2Cdev_hi2c, devAddr << 1, data, length, tout) == HAL_OK) return length;
+    HAL_I2C_Master_Transmit(I2Cdev_hi2c, devAddr, &regAddr, 1, tout);
+    if (HAL_I2C_Master_Receive(I2Cdev_hi2c, devAddr, data, length, tout) == HAL_OK) return length;
     return -1;
 }
 
@@ -187,8 +187,8 @@ uint8_t I2Cdev_readWords(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint1
 {
     uint16_t tout = timeout > 0 ? timeout : I2CDEV_DEFAULT_READ_TIMEOUT;
 
-    HAL_I2C_Master_Transmit(I2Cdev_hi2c, devAddr << 1, &regAddr, 1, tout);
-    if (HAL_I2C_Master_Receive(I2Cdev_hi2c, devAddr << 1, (uint8_t *)data, length*2, tout) == HAL_OK)
+    HAL_I2C_Master_Transmit(I2Cdev_hi2c, devAddr, &regAddr, 1, tout);
+    if (HAL_I2C_Master_Receive(I2Cdev_hi2c, devAddr, (uint8_t *)data, length*2, tout) == HAL_OK)
         return length;
     else
         return -1;

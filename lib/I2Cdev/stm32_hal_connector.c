@@ -15,38 +15,65 @@
   */
 HAL_StatusTypeDef HAL_I2C_Mem_Write(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
 {
-    uint8_t buffer[2 + Size];
-    uint16_t idx = 0;
+    (void)Timeout;
 
-    /* Формируем адрес регистра */
-    if (MemAddSize == I2C_MEMADD_SIZE_8BIT)
-    {
-        buffer[idx++] = (uint8_t)(MemAddress & 0xFF);
-    }
-    else if (MemAddSize == I2C_MEMADD_SIZE_16BIT)
-    {
-        buffer[idx++] = (uint8_t)((MemAddress >> 8) & 0xFF);
-        buffer[idx++] = (uint8_t)(MemAddress & 0xFF);
-    }
-    else
+    if (MemAddSize != I2C_MEMADD_SIZE_8BIT)
+        return HAL_ERROR;
+
+    /* Буфер: [Reg][Data...] */
+    uint8_t buffer[1 + Size];
+    buffer[0] = (uint8_t)MemAddress;
+
+    for (uint16_t i = 0; i < Size; i++)
+        buffer[1 + i] = pData[i];
+
+    if (HAL_I2C_Master_Transmit(
+            hi2c,
+            DevAddress,          // 7-bit address
+            buffer,
+            1 + Size,
+            Timeout
+        ) != HAL_OK)
     {
         return HAL_ERROR;
     }
 
-    /* Копируем данные */
-    for (uint16_t i = 0; i < Size; i++)
+    return HAL_OK;
+}
+
+HAL_StatusTypeDef HAL_I2C_Mem_Read(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+    (void)Timeout;
+
+    if (MemAddSize != I2C_MEMADD_SIZE_8BIT)
+        return HAL_ERROR;
+
+    uint8_t reg = (uint8_t)MemAddress;
+
+    /* Фаза 1: передаём адрес регистра */
+    if (HAL_I2C_Master_Transmit(
+            hi2c,
+            DevAddress,
+            &reg,
+            1,
+            Timeout
+        ) != HAL_OK)
     {
-        buffer[idx++] = pData[i];
+        return HAL_ERROR;
     }
 
-    HAL_I2C_Reset(hi2c);
+    /* Фаза 2: читаем данные */
+    if (HAL_I2C_Master_Receive(
+            hi2c,
+            DevAddress,
+            pData,
+            Size,
+            Timeout
+        ) != HAL_OK)
+    {
+        return HAL_ERROR;
+    }
 
-    /* Обычная передача мастером */
-    return HAL_I2C_Master_Transmit(
-        hi2c,
-        DevAddress,
-        buffer,
-        idx,
-        Timeout
-    );
+    return HAL_OK;
 }
+
