@@ -168,12 +168,42 @@ uint8_t I2Cdev_readWord(uint8_t devAddr, uint8_t regAddr, uint16_t *data, uint16
  */
 uint8_t I2Cdev_readBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8_t *data, uint16_t timeout)
 {
-    uint16_t tout = timeout > 0 ? timeout : I2CDEV_DEFAULT_READ_TIMEOUT;
+    uint16_t tout = timeout ? timeout : I2CDEV_DEFAULT_READ_TIMEOUT;
 
-    HAL_I2C_Master_Transmit(I2Cdev_hi2c, devAddr, &regAddr, 1, tout);
-    if (HAL_I2C_Master_Receive(I2Cdev_hi2c, devAddr, data, length, tout) == HAL_OK) return length;
-    return -1;
+    /* Установить указатель регистра */
+    if (HAL_I2C_Master_Transmit(I2Cdev_hi2c,
+                                devAddr,
+                                &regAddr,
+                                1,
+                                tout) != HAL_OK)
+    {
+        HAL_I2C_Reset(I2Cdev_hi2c);
+        return 0;
+    }
+
+    /* Короткая пауза — важно для MIK32 */
+    for (volatile int i = 0; i < 500; i++);
+
+    /* Прочитать данные */
+    if (HAL_I2C_Master_Receive(I2Cdev_hi2c,
+                               devAddr,
+                               data,
+                               length,
+                               tout) != HAL_OK)
+    {
+        HAL_I2C_Reset(I2Cdev_hi2c);
+        return 0;
+    }
+
+    return length;
 }
+// {
+//     uint16_t tout = timeout > 0 ? timeout : I2CDEV_DEFAULT_READ_TIMEOUT;
+
+//     HAL_I2C_Master_Transmit(I2Cdev_hi2c, devAddr, &regAddr, 1, tout);
+//     if (HAL_I2C_Master_Receive(I2Cdev_hi2c, devAddr, data, length, tout) == HAL_OK) return length;
+//     return -1;
+// }
 
 /** Read multiple words from a 16-bit device register.
  * @param devAddr I2C slave device address
@@ -321,6 +351,7 @@ uint16_t I2Cdev_writeWord(uint8_t devAddr, uint8_t regAddr, uint16_t data)
  */
 uint16_t I2Cdev_writeBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8_t* pData)
 {
+
     HAL_StatusTypeDef status = HAL_I2C_Mem_Write(I2Cdev_hi2c, devAddr, regAddr, I2C_MEMADD_SIZE_8BIT, pData, length, 1000);
     return status == HAL_OK;
 }

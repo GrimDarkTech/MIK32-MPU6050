@@ -59,7 +59,10 @@ void MPU6050_setAddress(uint8_t address)
  * the default internal clock source.
  */
 void MPU6050_initialize() {
-    devAddr = MPU6050_ADDRESS_AD0_LOW;
+    if(devAddr == 0x0)
+    {
+        devAddr = MPU6050_ADDRESS_AD0_LOW;
+    }
     MPU6050_setClockSource(MPU6050_CLOCK_PLL_XGYRO);
     MPU6050_setFullScaleGyroRange(MPU6050_GYRO_FS_250);
     MPU6050_setFullScaleAccelRange(MPU6050_ACCEL_FS_2);

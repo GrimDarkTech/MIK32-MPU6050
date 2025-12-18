@@ -63,38 +63,36 @@ int main()
     };
     HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 test connection done\n", USART_TIMEOUT_DEFAULT);
 
+    MPU6050_setAddress(MPU6050_ADDRESS_AD0_HIGH);
     MPU6050_initialize();
+    HAL_DelayMs(500);
+
     HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 init done\n", USART_TIMEOUT_DEFAULT);
 
-    char uart_buf[BUFFER_LENGTH];
-    uint8_t buf_pointer = 0;
+    I2Cdev_writeByte(0x69, 0x6B, 0x00);
+    char message[128] = "";
+    int16_t ax, ay, az;
+    int16_t gx, gy, gz;
     while (1)
     {
-        HAL_USART_Receive(&husart0, &uart_buf[buf_pointer], USART_TIMEOUT_DEFAULT);
-        if (uart_buf[buf_pointer] == '\n')
-        {
-            uart_buf[buf_pointer] = '\0';
-            buf_pointer = 0;
-            HAL_USART_Print(&husart0, uart_buf, USART_TIMEOUT_DEFAULT);
-            HAL_USART_Transmit(&husart0, '\n', USART_TIMEOUT_DEFAULT);
-        }
-        else
-        {
-            if (++buf_pointer >= BUFFER_LENGTH)
-            {
-                buf_pointer = 0;  
-            }
-        }
+        HAL_DelayMs(500);
 
-        HAL_DelayMs(25);
-        float ax = MPU6050_getAccelerationX();
-        float ay = MPU6050_getAccelerationY();
-        float az = MPU6050_getAccelerationZ();
-        char message[128] = "";
-        tinfmt_format(message, sizeof(message), "[1T-Rexboard]:[MPU6050]: Acc (%f, %f, %f)\n", ax, ay, az);
+        MPU6050_getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
+        float accX = ax / 16384.0;
+        float accY = ay / 16384.0;
+        float accZ = az / 16384.0;
+
+        float fgX = gx / 131.0f;
+        float fgY = gy / 131.0f;
+        float fgZ = gz / 131.0f;
+
+        HAL_USART_Print(&husart0, "[1T-Rexboard]:[MPU6050]\n", USART_TIMEOUT_DEFAULT);
+        
+        tinfmt_format(message, sizeof(message), "[MPU6050]:[Acc(x, y, z)] (%f, %f, %f)\n", accX, accY, accZ);
         HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
-        HAL_USART_Transmit(&husart0, '\n', USART_TIMEOUT_DEFAULT);
+        tinfmt_format(message, sizeof(message), "[MPU6050]:[Gyro(x, y, z)] (%f, %f, %f)\n", fgX, fgY, fgZ);
+        HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
 
     }
 }
