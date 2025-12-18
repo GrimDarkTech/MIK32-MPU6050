@@ -91,7 +91,7 @@ int main()
         float ay = MPU6050_getAccelerationY();
         float az = MPU6050_getAccelerationZ();
         char message[128] = "";
-        tinfmt_format(message, sizeof(message), "[1T-Rexboard]:[MPU6050]: Acc (%d, %d, %d)\n", ax, ay, az);
+        tinfmt_format(message, sizeof(message), "[1T-Rexboard]:[MPU6050]: Acc (%f, %f, %f)\n", ax, ay, az);
 
         HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
         HAL_USART_Transmit(&husart0, '\n', USART_TIMEOUT_DEFAULT);
@@ -164,7 +164,7 @@ void I2C0_Init(void)
     hi2c0.Init.Mode = HAL_I2C_MODE_MASTER;
     hi2c0.Init.DigitalFilter = I2C_DIGITALFILTER_OFF;
     hi2c0.Init.AnalogFilter = I2C_ANALOGFILTER_DISABLE;
-    hi2c0.Init.AutoEnd = I2C_AUTOEND_ENABLE;
+    hi2c0.Init.AutoEnd = I2C_AUTOEND_DISABLE;
     /* Настройка частоты */
     hi2c0.Clock.PRESC = 1;
     hi2c0.Clock.SCLDEL = 15;
