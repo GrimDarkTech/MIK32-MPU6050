@@ -47,7 +47,7 @@ void I2Cdev_init(I2C_HandleTypeDef * hi2c){
 	I2Cdev_hi2c = hi2c;
 }
 
-/** Read a single bit from an 8-bit device register.
+/** Read a single bit from an 7-bit device register.
  * @param devAddr I2C slave device address
  * @param regAddr Register regAddr to read from
  * @param bitNum Bit position to read (0-7)
@@ -79,7 +79,7 @@ uint8_t I2Cdev_readBitW(uint8_t devAddr, uint8_t regAddr, uint8_t bitNum, uint16
     return count;
 }
 
-/** Read multiple bits from an 8-bit device register.
+/** Read multiple bits from an 7-bit device register.
  * @param devAddr I2C slave device address
  * @param regAddr Register regAddr to read from
  * @param bitStart First bit position to read (0-7)
@@ -134,7 +134,7 @@ uint8_t I2Cdev_readBitsW(uint8_t devAddr, uint8_t regAddr, uint8_t bitStart, uin
     return count;
 }
 
-/** Read single byte from an 8-bit device register.
+/** Read single byte from an 7-bit device register.
  * @param devAddr I2C slave device address
  * @param regAddr Register regAddr to read from
  * @param data Container for byte value read from device
@@ -143,7 +143,18 @@ uint8_t I2Cdev_readBitsW(uint8_t devAddr, uint8_t regAddr, uint8_t bitStart, uin
  */
 uint8_t I2Cdev_readByte(uint8_t devAddr, uint8_t regAddr, uint8_t *data, uint16_t timeout)
 {
-    return I2Cdev_readBytes(devAddr, regAddr, 1, data, timeout);
+    uint8_t res = I2Cdev_readBytes(devAddr, regAddr, 1, data, timeout);
+
+    /* DEBUG - START*/
+    // if(res == -1)
+    // {
+    //     char message[64] = "";
+    //     tinfmt_format(message, sizeof(message), "[I2Cdev_readByte Error]: %d\n", res);
+    //     HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
+    // }
+    /* DEBUG - END*/
+    
+    return res;
 }
 
 /** Read single word from a 16-bit device register.
@@ -158,7 +169,7 @@ uint8_t I2Cdev_readWord(uint8_t devAddr, uint8_t regAddr, uint16_t *data, uint16
     return I2Cdev_readWords(devAddr, regAddr, 1, data, timeout);
 }
 
-/** Read multiple bytes from an 8-bit device register.
+/** Read multiple bytes from an 7-bit device register.
  * @param devAddr I2C slave device address
  * @param regAddr First register regAddr to read from
  * @param length Number of bytes to read
@@ -166,33 +177,62 @@ uint8_t I2Cdev_readWord(uint8_t devAddr, uint8_t regAddr, uint16_t *data, uint16
  * @param timeout Optional read timeout in milliseconds (0 to disable, leave off to use default class value in I2Cdev_readTimeout)
  * @return Number of bytes read (-1 indicates failure)
  */
-uint8_t I2Cdev_readBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8_t *data, uint16_t timeout)
+uint8_t I2Cdev_readBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8_t *data, uint16_t tout)
 {
-    uint16_t tout = timeout ? timeout : I2CDEV_DEFAULT_READ_TIMEOUT;
+    if(tout == 0)
+    {
+        tout = I2CDEV_DEFAULT_READ_TIMEOUT;
+    }
 
-    /* Установить указатель регистра */
-    if (HAL_I2C_Master_Transmit(I2Cdev_hi2c,
+    HAL_StatusTypeDef res = HAL_I2C_Master_Transmit(I2Cdev_hi2c,
                                 devAddr,
                                 &regAddr,
                                 1,
-                                tout) != HAL_OK)
+                                tout);
+
+
+    if (I2Cdev_hi2c->Init.AutoEnd == I2C_AUTOEND_DISABLE) 
     {
-        HAL_I2C_Reset(I2Cdev_hi2c);
-        return 0;
+        I2Cdev_hi2c->Instance->CR2 |= I2C_CR2_STOP_M;
     }
 
-    /* Короткая пауза — важно для MIK32 */
+    if(res != HAL_OK)
+    {
+        /* DEBUG - START*/
+        // char message[64] = "";
+        // tinfmt_format(message, sizeof(message), "[I2Cdev_readBytes]: Error in transmit. HAL status: %d\n", res);
+        // HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
+
+        // tinfmt_format(message, sizeof(message), "Devices address: %d\n", devAddr);
+        // HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
+
+        // tinfmt_format(message, sizeof(message), "Register address: %d\n", regAddr);
+        // HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
+        /* DEBUG - END*/
+        return -1;
+    }
+
     for (volatile int i = 0; i < 500; i++);
 
-    /* Прочитать данные */
-    if (HAL_I2C_Master_Receive(I2Cdev_hi2c,
+    res = HAL_I2C_Master_Receive(I2Cdev_hi2c,
                                devAddr,
                                data,
                                length,
-                               tout) != HAL_OK)
+                               tout);
+
+    if (I2Cdev_hi2c->Init.AutoEnd == I2C_AUTOEND_DISABLE) 
     {
-        HAL_I2C_Reset(I2Cdev_hi2c);
-        return 0;
+        I2Cdev_hi2c->Instance->CR2 |= I2C_CR2_STOP_M;
+    }
+    
+    if(res != HAL_OK)
+    {
+        /* DEBUG - START*/
+        // char message[64] = "";
+        // tinfmt_format(message, sizeof(message), "[I2Cdev_readBytes]: Error in receive. HAL status: %d\n", res);
+        // HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
+        /* DEBUG - END*/
+        return -1;
     }
 
     return length;
@@ -224,7 +264,7 @@ uint8_t I2Cdev_readWords(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint1
         return -1;
 }
 
-/** write a single bit in an 8-bit device register.
+/** write a single bit in an 7-bit device register.
  * @param devAddr I2C slave device address
  * @param regAddr Register regAddr to write to
  * @param bitNum Bit position to write (0-7)
@@ -254,7 +294,7 @@ uint16_t I2Cdev_writeBitW(uint8_t devAddr, uint8_t regAddr, uint8_t bitNum, uint
     return I2Cdev_writeWord(devAddr, regAddr, w);
 }
 
-/** Write multiple bits in an 8-bit device register.
+/** Write multiple bits in an 7-bit device register.
  * @param devAddr I2C slave device address
  * @param regAddr Register regAddr to write to
  * @param bitStart First bit position to write (0-7)
@@ -272,7 +312,7 @@ uint16_t I2Cdev_writeBits(uint8_t devAddr, uint8_t regAddr, uint8_t bitStart, ui
     // 10100011 original & ~mask
     // 10101011 masked | value
     uint8_t b;
-    if (I2Cdev_readByte(devAddr, regAddr, &b, 100) != 0)
+    if (I2Cdev_readByte(devAddr, regAddr, &b, I2CDEV_DEFAULT_READ_TIMEOUT) != 0)
     {
         uint8_t mask = ((1 << length) - 1) << (bitStart - length + 1);
         data <<= (bitStart - length + 1); // shift data into correct position
@@ -320,7 +360,7 @@ uint16_t I2Cdev_writeBitsW(uint8_t devAddr, uint8_t regAddr, uint8_t bitStart, u
     }
 }
 
-/** Write single byte to an 8-bit device register.
+/** Write single byte to an 7-bit device register.
  * @param devAddr I2C slave device address
  * @param regAddr Register address to write to
  * @param data New byte value to write
@@ -342,7 +382,7 @@ uint16_t I2Cdev_writeWord(uint8_t devAddr, uint8_t regAddr, uint16_t data)
     return I2Cdev_writeWords(devAddr, regAddr, 1, &data);
 }
 
-/** Write multiple bytes to an 8-bit device register.
+/** Write multiple bytes to an 7-bit device register.
  * @param devAddr I2C slave device address
  * @param regAddr First register address to write to
  * @param length Number of bytes to write
@@ -352,7 +392,18 @@ uint16_t I2Cdev_writeWord(uint8_t devAddr, uint8_t regAddr, uint16_t data)
 uint16_t I2Cdev_writeBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8_t* pData)
 {
 
+
     HAL_StatusTypeDef status = HAL_I2C_Mem_Write(I2Cdev_hi2c, devAddr, regAddr, I2C_MEMADD_SIZE_8BIT, pData, length, 1000);
+
+    if(status != HAL_OK)
+    {
+        /* DEBUG - START*/
+        // char message[64] = "";
+        // tinfmt_format(message, sizeof(message), "[I2Cdev_writeBytes] Error in HAL_I2C_Mem_Write; Status: %d\n", status);
+        // HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
+        /* DEBUG - END*/
+    }
+
     return status == HAL_OK;
 }
 

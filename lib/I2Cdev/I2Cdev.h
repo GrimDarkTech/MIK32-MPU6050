@@ -44,6 +44,12 @@ THE SOFTWARE.
 
 extern uint16_t I2Cdev_readTimeout;
 
+/* DEBUG - START*/
+//#include "mik32_hal_usart.h"
+//#include "tinyformat.h"
+//extern USART_HandleTypeDef husart0;
+/* DEBUG - END*/
+
 // 1000ms default read timeout (modify with "I2Cdev::readTimeout = [ms];")
 #define I2CDEV_DEFAULT_READ_TIMEOUT     1000
 

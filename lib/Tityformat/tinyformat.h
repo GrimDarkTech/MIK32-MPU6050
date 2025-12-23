@@ -6,7 +6,7 @@
 #include <math.h>
 
 // Простейший аналог snprintf для базовых типов
-int tinfmt_format(char* buf, int size, const char* fmt, ...) {
+static int tinfmt_format(char* buf, int size, const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     

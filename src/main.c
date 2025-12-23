@@ -12,7 +12,7 @@ I2C_HandleTypeDef hi2c0;
 
 void SystemClock_Config(void);
 void USART_Init();
-void I2C0_Init(void);
+void I2C0_Init(uint32_t clock_frequency, uint32_t i2c_frequency);
 
 int main()
 {
@@ -20,11 +20,11 @@ int main()
     USART_Init();
     HAL_USART_Print(&husart0, "[1T-Rexboard]:[UART firmware v. 1.0.12.25]: Started\n", USART_TIMEOUT_DEFAULT);
 
-    I2C0_Init();
+    I2C0_Init(32000000, 100000);
     HAL_USART_Print(&husart0, "[1T-Rexboard]: I2C0 init done\n", USART_TIMEOUT_DEFAULT);
 
     I2Cdev_init(&hi2c0);
-    HAL_USART_Print(&husart0, "[1T-Rexboard]: I2C0dev inti done\n", USART_TIMEOUT_DEFAULT);
+    HAL_USART_Print(&husart0, "[1T-Rexboard]: I2C0dev init done\n", USART_TIMEOUT_DEFAULT);
 
     MPU6050_setAddress(MPU6050_ADDRESS_AD0_HIGH);
     HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 address 0x69 setted\n", USART_TIMEOUT_DEFAULT);
@@ -47,6 +47,12 @@ int main()
             }
         }
     }
+
+    if (hi2c0.Init.AutoEnd == I2C_AUTOEND_DISABLE) 
+    {
+        hi2c0.Instance->CR2 |= I2C_CR2_STOP_M;
+    }
+    I2C0_Init(32000000, 100000);
     
     HAL_USART_Print(&husart0, "[1T-Rexboard]: Waiting for MPU6050 test connection\n", USART_TIMEOUT_DEFAULT);
 
@@ -55,21 +61,19 @@ int main()
     {
         uint8_t deviceID = MPU6050_getDeviceID();
         char message[64] = "[1T-Rexboard]:[I2C-Scanner]:";
-        tinfmt_format(message, sizeof(message), "[1T-Rexboard]: Device ID: %d\n", deviceID);
+        tinfmt_format(message, sizeof(message), "[1T-Rexboard]: I2C: %d; Device ID: %d\n", &hi2c0, deviceID);
         HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
 
-        HAL_DelayMs(200);
-        timeout -= 2; 
+        HAL_DelayMs(500);
+        timeout -= 2;
     };
     HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 test connection done\n", USART_TIMEOUT_DEFAULT);
 
-    MPU6050_setAddress(MPU6050_ADDRESS_AD0_HIGH);
     MPU6050_initialize();
-    HAL_DelayMs(500);
+    HAL_DelayMs(10);
 
     HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 init done\n", USART_TIMEOUT_DEFAULT);
 
-    I2Cdev_writeByte(0x69, 0x6B, 0x00);
     char message[128] = "";
     int16_t ax, ay, az;
     int16_t gx, gy, gz;
@@ -87,8 +91,12 @@ int main()
         float fgY = gy / 131.0f;
         float fgZ = gz / 131.0f;
 
+        int16_t temp = MPU6050_getTemperature();
+
         HAL_USART_Print(&husart0, "[1T-Rexboard]:[MPU6050]\n", USART_TIMEOUT_DEFAULT);
         
+        tinfmt_format(message, sizeof(message), "[MPU6050]:[Temp] (%d)\n", temp);
+        HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
         tinfmt_format(message, sizeof(message), "[MPU6050]:[Acc(x, y, z)] (%f, %f, %f)\n", accX, accY, accZ);
         HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
         tinfmt_format(message, sizeof(message), "[MPU6050]:[Gyro(x, y, z)] (%f, %f, %f)\n", fgX, fgY, fgZ);
@@ -155,20 +163,35 @@ void USART_Init()
     HAL_USART_Init(&husart0);
 }
 
-void I2C0_Init(void)
+void I2C0_Init(uint32_t clock_frequency, uint32_t i2c_frequency)
 {
-    /* Общие настройки */
     hi2c0.Instance = I2C_0;
     hi2c0.Init.Mode = HAL_I2C_MODE_MASTER;
     hi2c0.Init.DigitalFilter = I2C_DIGITALFILTER_OFF;
     hi2c0.Init.AnalogFilter = I2C_ANALOGFILTER_DISABLE;
     hi2c0.Init.AutoEnd = I2C_AUTOEND_DISABLE;
-    /* Настройка частоты */
-    hi2c0.Clock.PRESC = 1;
-    hi2c0.Clock.SCLDEL = 15;
-    hi2c0.Clock.SDADEL = 15;
-    hi2c0.Clock.SCLH = 75;
-    hi2c0.Clock.SCLL = 75;
+
+    if (clock_frequency == 32000000)
+    {
+        if (i2c_frequency == 100000) 
+        {
+            hi2c0.Clock.PRESC = 0; //на 100 кГц
+            hi2c0.Clock.SCLDEL = 8;
+            hi2c0.Clock.SDADEL = 2;
+            hi2c0.Clock.SCLH = 144;
+            hi2c0.Clock.SCLL = 166;
+        }
+
+        if (i2c_frequency == 400000) 
+        {
+            hi2c0.Clock.PRESC = 0; //на 400 кГц
+            hi2c0.Clock.SCLDEL = 3;
+            hi2c0.Clock.SDADEL = 2;
+            hi2c0.Clock.SCLH = 31;
+            hi2c0.Clock.SCLL = 35;
+        }
+    }
+
     if (HAL_I2C_Init(&hi2c0) != HAL_OK)
     {
         HAL_USART_Print(&husart0, "[1T-Rexboard]: I2C init error\n", USART_TIMEOUT_DEFAULT);
