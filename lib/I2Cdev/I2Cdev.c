@@ -237,13 +237,6 @@ uint8_t I2Cdev_readBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8
 
     return length;
 }
-// {
-//     uint16_t tout = timeout > 0 ? timeout : I2CDEV_DEFAULT_READ_TIMEOUT;
-
-//     HAL_I2C_Master_Transmit(I2Cdev_hi2c, devAddr, &regAddr, 1, tout);
-//     if (HAL_I2C_Master_Receive(I2Cdev_hi2c, devAddr, data, length, tout) == HAL_OK) return length;
-//     return -1;
-// }
 
 /** Read multiple words from a 16-bit device register.
  * @param devAddr I2C slave device address
@@ -258,10 +251,26 @@ uint8_t I2Cdev_readWords(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint1
     uint16_t tout = timeout > 0 ? timeout : I2CDEV_DEFAULT_READ_TIMEOUT;
 
     HAL_I2C_Master_Transmit(I2Cdev_hi2c, devAddr, &regAddr, 1, tout);
-    if (HAL_I2C_Master_Receive(I2Cdev_hi2c, devAddr, (uint8_t *)data, length*2, tout) == HAL_OK)
+    if (I2Cdev_hi2c->Init.AutoEnd == I2C_AUTOEND_DISABLE) 
+    {
+        I2Cdev_hi2c->Instance->CR2 |= I2C_CR2_STOP_M;
+    }
+
+    HAL_StatusTypeDef res = HAL_I2C_Master_Receive(I2Cdev_hi2c, devAddr, (uint8_t *)data, length*2, tout);
+
+    if (I2Cdev_hi2c->Init.AutoEnd == I2C_AUTOEND_DISABLE) 
+    {
+        I2Cdev_hi2c->Instance->CR2 |= I2C_CR2_STOP_M;
+    }
+
+    if (res == HAL_OK)
+    {
         return length;
+    }
     else
+    {
         return -1;
+    }
 }
 
 /** write a single bit in an 7-bit device register.
