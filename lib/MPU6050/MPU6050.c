@@ -2695,6 +2695,58 @@ void MPU6050_setFIFOByte(uint8_t data) {
     I2Cdev_writeByte(devAddr, MPU6050_RA_FIFO_R_W, data);
 }
 
+
+int8_t MPU6050_getCurrentFIFOPacket(uint8_t *data, uint8_t length) 
+{ // overflow proof
+    int16_t fifoC;
+    // This section of code is for when we allowed more than 1 packet to be acquired
+    uint32_t BreakTimer = HAL_Micros();
+    bool packetReceived = false;
+    do {
+        if ((fifoC = MPU6050_getFIFOCount())  > length) 
+        {
+
+            if (fifoC > 200) 
+            { // if you waited to get the FIFO buffer to > 200 bytes it will take longer to get the last packet in the FIFO Buffer than it will take to  reset the buffer and wait for the next to arrive
+                MPU6050_resetFIFO(); // Fixes any overflow corruption
+                fifoC = 0;
+
+                while (!(fifoC = MPU6050_getFIFOCount()) && ((HAL_Micros() - BreakTimer) <= MPU6050_FIFO_DEFAULT_TIMEOUT)); // Get Next New Packet
+                
+            } 
+            else 
+            { //We have more than 1 packet but less than 200 bytes of data in the FIFO Buffer
+                uint8_t Trash[I2CDEVLIB_WIRE_BUFFER_LENGTH];
+                while ((fifoC = MPU6050_getFIFOCount()) > length) 
+                {  // Test each time just in case the MPU is writing to the FIFO Buffer
+                    fifoC = fifoC - length; // Save the last packet
+                    uint16_t  RemoveBytes;
+
+                    while (fifoC) 
+                    { // fifo count will reach zero so this is safe
+                        RemoveBytes = (fifoC < I2CDEVLIB_WIRE_BUFFER_LENGTH) ? fifoC : I2CDEVLIB_WIRE_BUFFER_LENGTH; // Buffer Length is different than the packet length this will efficiently clear the buffer
+                        MPU6050_getFIFOBytes(Trash, (uint8_t)RemoveBytes);
+                        fifoC -= RemoveBytes;
+                    }
+                }
+            }
+        }
+        if (!fifoC)
+        {
+            return 0; // Called too early no data or we timed out after FIFO Reset
+        }
+        // We have 1 packet
+        packetReceived = fifoC == length;
+        if (!packetReceived && (HAL_Micros() - BreakTimer) > MPU6050_FIFO_DEFAULT_TIMEOUT) return 0;
+    } 
+
+    while (!packetReceived);
+    MPU6050_getFIFOBytes(data, length); //Get 1 packet
+
+    return 1;
+}
+
+
 // WHO_AM_I register
 
 /** Get Device ID.
@@ -2979,11 +3031,11 @@ bool MPU6050_writeMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t ba
     MPU6050_setMemoryStartAddress(address);
     uint8_t chunkSize;
     uint8_t *verifyBuffer;
-    uint8_t *progBuffer;
+    uint8_t *progBuffer_local;
     uint16_t i;
     uint8_t j;
     if (verify) verifyBuffer = (uint8_t *)malloc(MPU6050_DMP_MEMORY_CHUNK_SIZE);
-    if (useProgMem) progBuffer = (uint8_t *)malloc(MPU6050_DMP_MEMORY_CHUNK_SIZE);
+    if (useProgMem) progBuffer_local = (uint8_t *)malloc(MPU6050_DMP_MEMORY_CHUNK_SIZE);
     for (i = 0; i < dataSize;) {
         // determine correct chunk size according to bank position and data size
         chunkSize = MPU6050_DMP_MEMORY_CHUNK_SIZE;
@@ -2996,20 +3048,20 @@ bool MPU6050_writeMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t ba
 
         if (useProgMem) {
             // write the chunk of data as specified
-            for (j = 0; j < chunkSize; j++) progBuffer[j] = pgm_read_byte(data + i + j);
+            for (j = 0; j < chunkSize; j++) progBuffer_local[j] = pgm_read_byte(data + i + j);
         } else {
             // write the chunk of data as specified
-            progBuffer = (uint8_t *)data + i;
+            progBuffer_local = (uint8_t *)data + i;
         }
 
-        I2Cdev_writeBytes(devAddr, MPU6050_RA_MEM_R_W, chunkSize, progBuffer);
+        I2Cdev_writeBytes(devAddr, MPU6050_RA_MEM_R_W, chunkSize, progBuffer_local);
 
         // verify data if needed
         if (verify && verifyBuffer) {
             MPU6050_setMemoryBank(bank, false, false);
             MPU6050_setMemoryStartAddress(address);
             I2Cdev_readBytes(devAddr, MPU6050_RA_MEM_R_W, chunkSize, verifyBuffer, 0);
-            if (memcmp(progBuffer, verifyBuffer, chunkSize) != 0) {
+            if (memcmp(progBuffer_local, verifyBuffer, chunkSize) != 0) {
                 /*Serial.print("Block write verification error, bank ");
                 Serial.print(bank, DEC);
                 Serial.print(", address ");
@@ -3017,8 +3069,8 @@ bool MPU6050_writeMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t ba
                 Serial.print("!\nExpected:");
                 for (j = 0; j < chunkSize; j++) {
                     Serial.print(" 0x");
-                    if (progBuffer[j] < 16) Serial.print("0");
-                    Serial.print(progBuffer[j], HEX);
+                    if (progBuffer_local[j] < 16) Serial.print("0");
+                    Serial.print(progBuffer_local[j], HEX);
                 }
                 Serial.print("\nReceived:");
                 for (uint8_t j = 0; j < chunkSize; j++) {
@@ -3028,7 +3080,7 @@ bool MPU6050_writeMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t ba
                 }
                 Serial.print("\n");*/
                 free(verifyBuffer);
-                if (useProgMem) free(progBuffer);
+                if (useProgMem) free(progBuffer_local);
                 return false; // uh oh.
             }
         }
@@ -3047,7 +3099,7 @@ bool MPU6050_writeMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t ba
         }
     }
     if (verify) free(verifyBuffer);
-    if (useProgMem) free(progBuffer);
+    if (useProgMem) free(progBuffer_local);
     return true;
 }
 bool MPU6050_writeProgMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t bank, uint8_t address, bool verify) {

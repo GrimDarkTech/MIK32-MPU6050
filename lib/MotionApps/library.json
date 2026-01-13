@@ -1,0 +1,11 @@
+{
+  "name": "MotionApps",
+  "version": "1.0.0",
+  "build": {
+    "srcDir": ".",
+    "srcFilter": [
+      "+<*.c>",
+      "+<*.cpp>"
+    ]
+  }
+}

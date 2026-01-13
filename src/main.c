@@ -1,6 +1,7 @@
 #include "mik32_hal_usart.h"
 #include "mik32_hal_i2c.h"
 
+#include "MotionApps20.h"
 #include "MPU6050.h"
 #include "I2Cdev.h"
 
@@ -13,6 +14,11 @@ I2C_HandleTypeDef hi2c0;
 void SystemClock_Config(void);
 void USART_Init();
 void I2C0_Init(uint32_t clock_frequency, uint32_t i2c_frequency);
+
+
+uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
+uint16_t fifoCount;     // count of all bytes currently in FIFO
+uint8_t fifoBuffer[64]; // FIFO storage buffe
 
 int main()
 {
@@ -71,15 +77,29 @@ int main()
 
     MPU6050_initialize();
     HAL_DelayMs(10);
-
     HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 init done\n", USART_TIMEOUT_DEFAULT);
+
+    MotionApps20_setAddress(MPU6050_ADDRESS_AD0_HIGH);
+    HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 DMP address 0x69 setted\n", USART_TIMEOUT_DEFAULT);
+
+    uint8_t status = MotionApps20_dmpInitialize();
+    HAL_DelayMs(100);
+    if(status != 0)
+    {
+        HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 DMP init error\n", USART_TIMEOUT_DEFAULT);  
+    }
+
+    MPU6050_setDMPEnabled(true);
+    packetSize = 42;
+
+    HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 DMP init done\n", USART_TIMEOUT_DEFAULT);
 
     char message[128] = "";
     int16_t ax, ay, az;
     int16_t gx, gy, gz;
     while (1)
     {
-        HAL_DelayMs(500);
+        // HAL_DelayMs(500);
 
         MPU6050_getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
@@ -102,6 +122,44 @@ int main()
         tinfmt_format(message, sizeof(message), "[MPU6050]:[Gyro(x, y, z)] (%f, %f, %f)\n", fgX, fgY, fgZ);
         HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
 
+
+
+        int16_t fifoC = MPU6050_getFIFOCount();
+        tinfmt_format(message, sizeof(message), "[MPU6050]:[FIFO Count]: %d\n", fifoC);
+        HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
+
+        uint8_t fifoPacket = MPU6050_getCurrentFIFOPacket(fifoBuffer, 42);
+        if (fifoPacket)
+        {
+            Quaternion q;
+            MotionApps20_dmpGetQuaternion_qauternion(&q, fifoBuffer);
+
+            tinfmt_format(message, sizeof(message), "[MPU6050]:[Quat(w, x, y, z)] (%d, %d, %d, %d)\n", q.w, q.x, q.y, q.z);
+        }
+
+    //     if (fifoC == 1024) {
+    //         // Если переполнение — просто сбрасываем и ждем следующего цикла
+    //         MPU6050_resetFIFO();
+    //         HAL_USART_Print(&husart0, "FIFO Overflow!\n", 1000);
+    //     } 
+    //     else if (fifoC >= 42) 
+    //     {
+    //         // Читаем пакеты, пока они есть
+    //         while (fifoC >= 42) 
+    //         {
+    //             MPU6050_getFIFOBytes(fifoBuffer, 42);
+    //             fifoC -= 42;
+    //         }
+    //     }
+    
+    // // Обрабатываем последний прочитанный пакет
+    // Quaternion q;
+    // MotionApps20_dmpGetQuaternion_qauternion(&q, fifoBuffer);
+    
+    // // ВАЖНО: q.w, q.x и т.д. — это float. 
+    // // Если tinfmt_format не настроен на float, используйте целые числа для теста:
+    // tinfmt_format(message, sizeof(message), "Q: w:%d x:%d\n", (int)(q.w*1000), (int)(q.x*1000));
+    // HAL_USART_Print(&husart0, message, 1000);
     }
 }
 void SystemClock_Config(void)
@@ -159,7 +217,7 @@ void USART_Init()
     husart0.Modem.dsr = Disable; //in
     husart0.Modem.ri = Disable;  //in
     husart0.Modem.ddis = Disable;//out
-    husart0.baudrate = 9600;
+    husart0.baudrate = 115200;
     HAL_USART_Init(&husart0);
 }
 
