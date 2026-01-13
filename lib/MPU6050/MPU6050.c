@@ -2696,54 +2696,43 @@ void MPU6050_setFIFOByte(uint8_t data) {
 }
 
 
-int8_t MPU6050_getCurrentFIFOPacket(uint8_t *data, uint8_t length) 
-{ // overflow proof
+int8_t MPU6050_getCurrentFIFOPacket(uint8_t *data, uint8_t length) {
     int16_t fifoC;
-    // This section of code is for when we allowed more than 1 packet to be acquired
-    uint32_t BreakTimer = HAL_Micros();
-    bool packetReceived = false;
-    do {
-        if ((fifoC = MPU6050_getFIFOCount())  > length) 
-        {
+    // Вместо Micros используем счетчик попыток (примерно на 50-100 мс)
+    uint32_t attempts = 10000; 
 
-            if (fifoC > 200) 
-            { // if you waited to get the FIFO buffer to > 200 bytes it will take longer to get the last packet in the FIFO Buffer than it will take to  reset the buffer and wait for the next to arrive
-                MPU6050_resetFIFO(); // Fixes any overflow corruption
-                fifoC = 0;
+    while (attempts > 0) {
+        fifoC = MPU6050_getFIFOCount();
+        
+        if (fifoC < length) {
+            attempts--;
+            continue; 
+        }
 
-                while (!(fifoC = MPU6050_getFIFOCount()) && ((HAL_Micros() - BreakTimer) <= MPU6050_FIFO_DEFAULT_TIMEOUT)); // Get Next New Packet
-                
-            } 
-            else 
-            { //We have more than 1 packet but less than 200 bytes of data in the FIFO Buffer
-                uint8_t Trash[I2CDEVLIB_WIRE_BUFFER_LENGTH];
-                while ((fifoC = MPU6050_getFIFOCount()) > length) 
-                {  // Test each time just in case the MPU is writing to the FIFO Buffer
-                    fifoC = fifoC - length; // Save the last packet
-                    uint16_t  RemoveBytes;
+        if (fifoC > 200) { 
+            // Если в буфере каша — сбрасываем
+            MPU6050_resetFIFO();
+            // Даем датчику немного времени на подготовку нового пакета
+            for(volatile int i=0; i<5000; i++); 
+            attempts = 10000; // Сбрасываем счетчик попыток
+            continue;
+        }
 
-                    while (fifoC) 
-                    { // fifo count will reach zero so this is safe
-                        RemoveBytes = (fifoC < I2CDEVLIB_WIRE_BUFFER_LENGTH) ? fifoC : I2CDEVLIB_WIRE_BUFFER_LENGTH; // Buffer Length is different than the packet length this will efficiently clear the buffer
-                        MPU6050_getFIFOBytes(Trash, (uint8_t)RemoveBytes);
-                        fifoC -= RemoveBytes;
-                    }
-                }
+        if (fifoC >= length) {
+            // Если накопилось несколько пакетов, вычитываем лишние
+            uint8_t Trash[32];
+            while (fifoC > length) {
+                uint8_t readNow = (fifoC - length > 32) ? 32 : (fifoC - length);
+                MPU6050_getFIFOBytes(Trash, readNow);
+                fifoC = MPU6050_getFIFOCount();
             }
+            
+            // ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: читаем сам пакет
+            MPU6050_getFIFOBytes(data, length); 
+            return 1;
         }
-        if (!fifoC)
-        {
-            return 0; // Called too early no data or we timed out after FIFO Reset
-        }
-        // We have 1 packet
-        packetReceived = fifoC == length;
-        if (!packetReceived && (HAL_Micros() - BreakTimer) > MPU6050_FIFO_DEFAULT_TIMEOUT) return 0;
-    } 
-
-    while (!packetReceived);
-    MPU6050_getFIFOBytes(data, length); //Get 1 packet
-
-    return 1;
+    }
+    return 0; // Вышли по "таймауту" (когда attempts кончились)
 }
 
 

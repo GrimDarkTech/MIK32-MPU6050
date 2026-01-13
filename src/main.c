@@ -129,37 +129,23 @@ int main()
         HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
 
         uint8_t fifoPacket = MPU6050_getCurrentFIFOPacket(fifoBuffer, 42);
-        if (fifoPacket)
+
+        tinfmt_format(message, sizeof(message), "[MPU6050]:[fifoPacket]: %d\n", fifoPacket);
+        HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
+        if (fifoPacket != 0)
         {
             Quaternion q;
             MotionApps20_dmpGetQuaternion_qauternion(&q, fifoBuffer);
 
-            tinfmt_format(message, sizeof(message), "[MPU6050]:[Quat(w, x, y, z)] (%d, %d, %d, %d)\n", q.w, q.x, q.y, q.z);
-        }
+            tinfmt_format(message, sizeof(message), "[MPU6050]:[Quat(w, x, y, z)] (%f, %f, %f, %f)\n", q.w, q.x, q.y, q.z);
+            HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
 
-    //     if (fifoC == 1024) {
-    //         // Если переполнение — просто сбрасываем и ждем следующего цикла
-    //         MPU6050_resetFIFO();
-    //         HAL_USART_Print(&husart0, "FIFO Overflow!\n", 1000);
-    //     } 
-    //     else if (fifoC >= 42) 
-    //     {
-    //         // Читаем пакеты, пока они есть
-    //         while (fifoC >= 42) 
-    //         {
-    //             MPU6050_getFIFOBytes(fifoBuffer, 42);
-    //             fifoC -= 42;
-    //         }
-    //     }
-    
-    // // Обрабатываем последний прочитанный пакет
-    // Quaternion q;
-    // MotionApps20_dmpGetQuaternion_qauternion(&q, fifoBuffer);
-    
-    // // ВАЖНО: q.w, q.x и т.д. — это float. 
-    // // Если tinfmt_format не настроен на float, используйте целые числа для теста:
-    // tinfmt_format(message, sizeof(message), "Q: w:%d x:%d\n", (int)(q.w*1000), (int)(q.x*1000));
-    // HAL_USART_Print(&husart0, message, 1000);
+            float eulerAngles[3] = {0.0f, 0.0f, 0.0f};
+            MotionApps20_dmpGetEuler(eulerAngles, &q);
+
+            tinfmt_format(message, sizeof(message), "[MPU6050]:[Euler(x, y, z)] (%f, %f, %f)\n", eulerAngles[0], eulerAngles[1], eulerAngles[2]);
+            HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
+        }
     }
 }
 void SystemClock_Config(void)
