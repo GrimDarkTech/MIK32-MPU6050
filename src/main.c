@@ -99,7 +99,7 @@ int main()
     int16_t gx, gy, gz;
     while (1)
     {
-        // HAL_DelayMs(500);
+        HAL_DelayMs(500);
 
         MPU6050_getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
@@ -143,7 +143,7 @@ int main()
             float eulerAngles[3] = {0.0f, 0.0f, 0.0f};
             MotionApps20_dmpGetEuler(eulerAngles, &q);
 
-            tinfmt_format(message, sizeof(message), "[MPU6050]:[Euler(x, y, z)] (%f, %f, %f)\n", eulerAngles[0], eulerAngles[1], eulerAngles[2]);
+            tinfmt_format(message, sizeof(message), "[MPU6050]:[Euler(x, y, z)] (%f, %f, %f)\n", eulerAngles[0] * 57.29f, eulerAngles[1] * 57.29f, eulerAngles[2] * 57.29f);
             HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
         }
     }
