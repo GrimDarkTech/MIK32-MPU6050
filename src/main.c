@@ -7,7 +7,6 @@
 
 #include "tinyformat.h"
 
-#define BUFFER_LENGTH   50
 USART_HandleTypeDef husart0;
 I2C_HandleTypeDef hi2c0;
 
@@ -16,15 +15,14 @@ void USART_Init();
 void I2C0_Init(uint32_t clock_frequency, uint32_t i2c_frequency);
 
 
-uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
-uint16_t fifoCount;     // count of all bytes currently in FIFO
+uint16_t packetSize = 42;    // expected DMP packet size (default is 42 bytes)
 uint8_t fifoBuffer[64]; // FIFO storage buffe
 
 int main()
 {
     SystemClock_Config();
     USART_Init();
-    HAL_USART_Print(&husart0, "[1T-Rexboard]:[UART firmware v. 1.0.12.25]: Started\n", USART_TIMEOUT_DEFAULT);
+    HAL_USART_Print(&husart0, "[1T-Rexboard]:[UART firmware v. 2.0.01.26]: Started\n", USART_TIMEOUT_DEFAULT);
 
     I2C0_Init(32000000, 100000);
     HAL_USART_Print(&husart0, "[1T-Rexboard]: I2C0 init done\n", USART_TIMEOUT_DEFAULT);
@@ -90,7 +88,6 @@ int main()
     }
 
     MPU6050_setDMPEnabled(true);
-    packetSize = 42;
 
     HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 DMP init done\n", USART_TIMEOUT_DEFAULT);
 
@@ -123,12 +120,11 @@ int main()
         HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
 
 
-
         int16_t fifoC = MPU6050_getFIFOCount();
         tinfmt_format(message, sizeof(message), "[MPU6050]:[FIFO Count]: %d\n", fifoC);
         HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
 
-        uint8_t fifoPacket = MPU6050_getCurrentFIFOPacket(fifoBuffer, 42);
+        uint8_t fifoPacket = MPU6050_getCurrentFIFOPacket(fifoBuffer, packetSize);
 
         tinfmt_format(message, sizeof(message), "[MPU6050]:[fifoPacket]: %d\n", fifoPacket);
         HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
