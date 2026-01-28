@@ -32,35 +32,8 @@ int main()
 
     MPU6050_setAddress(MPU6050_ADDRESS_AD0_HIGH);
     HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 address 0x69 setted\n", USART_TIMEOUT_DEFAULT);
-    
-    HAL_USART_Print(&husart0, "[1T-Rexboard]: Scanning\n", USART_TIMEOUT_DEFAULT);
-    HAL_StatusTypeDef result;
-    for (uint8_t i = 0; i < 0x80; i++)
-    {
-        uint8_t dummy;
-        result = HAL_I2C_Master_Receive(&hi2c0, i, &dummy, 1, 10000);
-        if (result == HAL_OK)
-        {
-            char message[64] = "[1T-Rexboard]:[I2C-Scanner]:";
-            tinfmt_format(message, sizeof(message), "[1T-Rexboard]:[I2C-Scanner]: Device on %d\n", i);
-            HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
 
-            if(MPU6050_ADDRESS_AD0_HIGH == i)
-            {
-                HAL_USART_Print(&husart0, "[1T-Rexboard]:[I2C-Scanner]: MPU6050 detected on 0x69\n", USART_TIMEOUT_DEFAULT);
-            }
-        }
-    }
-
-    if (hi2c0.Init.AutoEnd == I2C_AUTOEND_DISABLE) 
-    {
-        hi2c0.Instance->CR2 |= I2C_CR2_STOP_M;
-    }
-    I2C0_Init(32000000, 100000);
-    
-    HAL_USART_Print(&husart0, "[1T-Rexboard]: Waiting for MPU6050 test connection\n", USART_TIMEOUT_DEFAULT);
-
-    uint8_t timeout = 100;
+    uint8_t timeout = 5;
     while(!MPU6050_testConnection() && timeout > 2)
     {
         uint8_t deviceID = MPU6050_getDeviceID();
@@ -68,8 +41,8 @@ int main()
         tinfmt_format(message, sizeof(message), "[1T-Rexboard]: I2C: %d; Device ID: %d\n", &hi2c0, deviceID);
         HAL_USART_Print(&husart0, message, USART_TIMEOUT_DEFAULT);
 
-        HAL_DelayMs(500);
-        timeout -= 2;
+        HAL_DelayMs(200);
+        timeout -= 1;
     };
     HAL_USART_Print(&husart0, "[1T-Rexboard]: MPU6050 test connection done\n", USART_TIMEOUT_DEFAULT);
 
@@ -199,7 +172,7 @@ void USART_Init()
     husart0.Modem.dsr = Disable; //in
     husart0.Modem.ri = Disable;  //in
     husart0.Modem.ddis = Disable;//out
-    husart0.baudrate = 115200;
+    husart0.baudrate = 38400;
     HAL_USART_Init(&husart0);
 }
 
