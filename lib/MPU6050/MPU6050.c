@@ -2690,8 +2690,11 @@ uint8_t MPU6050_getFIFOByte() {
     I2Cdev_readByte(devAddr, MPU6050_RA_FIFO_R_W, buffer, 0);
     return buffer[0];
 }
-void MPU6050_getFIFOBytes(uint8_t *data, uint8_t length) {
-    I2Cdev_readBytes(devAddr, MPU6050_RA_FIFO_R_W, length, data, 0);
+uint8_t MPU6050_getFIFOBytes(uint8_t *data, uint8_t length) 
+{
+    uint8_t res = I2Cdev_readBytes(devAddr, MPU6050_RA_FIFO_R_W, length, data, 0);
+
+    return res;
 }
 /** Write byte to FIFO MPU6050_buffer.
  * @see getFIFOByte()
@@ -2702,43 +2705,60 @@ void MPU6050_setFIFOByte(uint8_t data) {
 }
 
 
-int8_t MPU6050_getCurrentFIFOPacket(uint8_t *data, uint8_t length) {
-    int16_t fifoC;
-    // Вместо Micros используем счетчик попыток (примерно на 50-100 мс)
-    uint32_t attempts = 10000; 
+int8_t MPU6050_getCurrentFIFOPacket(uint8_t *data, uint8_t length) 
+{
+    uint16_t fifoC;
+    uint32_t attempts = 5000;
 
-    while (attempts > 0) {
+    static uint8_t Trash[32];
+
+    while (attempts--)
+    {
         fifoC = MPU6050_getFIFOCount();
-        
-        if (fifoC < length) {
-            attempts--;
-            continue; 
-        }
 
-        if (fifoC > 200) { 
-            // Если в буфере каша — сбрасываем
-            MPU6050_resetFIFO();
-            // Даем датчику немного времени на подготовку нового пакета
-            for(volatile int i=0; i<5000; i++); 
-            attempts = 10000; // Сбрасываем счетчик попыток
+        if (fifoC < length)
+        {
             continue;
         }
 
-        if (fifoC >= length) {
-            // Если накопилось несколько пакетов, вычитываем лишние
-            uint8_t Trash[32];
-            while (fifoC > length) {
-                uint8_t readNow = (fifoC - length > 32) ? 32 : (fifoC - length);
-                MPU6050_getFIFOBytes(Trash, readNow);
-                fifoC = MPU6050_getFIFOCount();
+        // Если FIFO ушёл в разнос
+        if (fifoC > 200)
+        {
+            MPU6050_resetFIFO();
+
+            for (volatile int i = 0; i < 5000; i++);
+
+            continue;
+        }
+
+        // Вычитываем лишнее, но С ОГРАНИЧЕНИЕМ
+        uint8_t guard = 10;   // защита от вечного цикла
+
+        while (fifoC > length && guard--)
+        {
+            uint16_t diff = fifoC - length;
+            uint8_t readNow = (diff > sizeof(Trash)) ? sizeof(Trash) : diff;
+
+            if (MPU6050_getFIFOBytes(Trash, readNow))
+            {
+                // ❗ I2C завис / таймаут
+                return 0;
             }
-            
-            // ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: читаем сам пакет
-            MPU6050_getFIFOBytes(data, length); 
+
+            fifoC = MPU6050_getFIFOCount();
+        }
+
+        // Финальное чтение пакета
+        if (fifoC >= length)
+        {
+            if (!MPU6050_getFIFOBytes(data, length))
+                return 0;
+
             return 1;
         }
     }
-    return 0; // Вышли по "таймауту" (когда attempts кончились)
+
+    return 0;
 }
 
 
