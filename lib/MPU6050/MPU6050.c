@@ -41,6 +41,12 @@ static uint8_t devAddr;
 static uint8_t buffer[14];
 
 
+/* DEBUG - START*/
+// #include "mik32_hal_usart.h"
+// #include "tinyformat.h"
+// extern USART_HandleTypeDef husart0;
+/* DEBUG - END*/
+
 /** Valid addresses
  *  MPU6050_ADDRESS_AD0_LOW
  *  MPU6050_ADDRESS_AD0_HIGH
